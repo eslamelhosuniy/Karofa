@@ -1,4 +1,54 @@
 services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: karofa-app
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../src:/app
+      - ../src/assets:/app/assets
+    environment:
+      - APP_NAME=${APP_NAME:-Firmy}
+      - APP_VERSION=${APP_VERSION:-0.1}
+      - POSTGRES_USERNAME=${POSTGRES_USERNAME:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_HOST=pgvector
+      - POSTGRES_PORT=5432
+      - POSTGRES_MAIN_DATABASE=${POSTGRES_MAIN_DATABASE:-minirag}
+      - GENERATION_BACKEND=${GENERATION_BACKEND}
+      - EMBEDDING_BACKEND=${EMBEDDING_BACKEND}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_API_URL=${OPENAI_API_URL}
+      - COHERE_API_KEY=${COHERE_API_KEY}
+      - GENERATION_MODEL_ID=${GENERATION_MODEL_ID:-gpt-3.5-turbo-0125}
+      - EMBEDDING_MODEL_ID=${EMBEDDING_MODEL_ID:-embed-multilingual-light-v3.0}
+      - EMBEDDING_MODEL_SIZE=${EMBEDDING_MODEL_SIZE:-384}
+      - INPUT_DAFAULT_MAX_CHARACTERS=${INPUT_DAFAULT_MAX_CHARACTERS:-1024}
+      - GENERATION_DAFAULT_MAX_TOKENS=${GENERATION_DAFAULT_MAX_TOKENS:-200}
+      - GENERATION_DAFAULT_TEMPERATURE=${GENERATION_DAFAULT_TEMPERATURE:-0.1}
+      - VECTOR_DB_BACKEND=${VECTOR_DB_BACKEND}
+      - VECTOR_DB_PATH=${VECTOR_DB_PATH}
+      - VECTOR_DB_DISTANCE_METHOD=${VECTOR_DB_DISTANCE_METHOD}
+      - PRIMARY_LANG=${PRIMARY_LANG:-en}
+      - DEFAULT_LANG=${DEFAULT_LANG:-en}
+      - FILE_ALLOWED_TYPES=${FILE_ALLOWED_TYPES}
+      - FILE_MAX_SIZE=${FILE_MAX_SIZE:-10}
+      - FILE_DEFAULT_CHUNK_SIZE=${FILE_DEFAULT_CHUNK_SIZE:-512000}
+    networks:
+      - backend
+    depends_on:
+      pgvector:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
   mongodb:
     image: mongo:7-jammy
     container_name: mongodb
@@ -22,9 +72,15 @@ services:
       - pgvector_data:/var/lib/postgresql/data
     environment:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_MAIN_DATABASE:-minirag}
     networks:
       - backend
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 networks:
   backend:
