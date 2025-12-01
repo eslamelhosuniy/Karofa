@@ -10,6 +10,10 @@ services:
       - .env
     ports:
       - "8000:8000"
+
+    networks:
+      - shared-network   # <-- local network to talk to NGINX
+      - default          # <-- gives internet & access to remote machine
     volumes:
       - ../src:/app
       - ../src/assets:/app/assets
@@ -64,7 +68,6 @@ services:
       - WORKERS=${WORKERS:-4}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       
-    network_mode: bridge                    # ⬅️ Use default bridge for external connectivity
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -73,3 +76,7 @@ services:
       start_period: 40s
     security_opt:
       - no-new-privileges:true
+
+networks:
+  shared-network:
+    external: true
