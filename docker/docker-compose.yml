@@ -1,9 +1,10 @@
 services:
-  app:
+  firmy-ai:
     build:
       context: ..
       dockerfile: Dockerfile
-    container_name: prod-karofa-app
+    image: firmy-ai
+    container_name: firmy-ai
     restart: unless-stopped
     env_file:
       - .env
