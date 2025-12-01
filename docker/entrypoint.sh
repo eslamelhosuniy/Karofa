@@ -16,16 +16,20 @@ PGPASSWORD=$POSTGRES_PASSWORD psql -h "$POSTGRES_HOST" -U "$POSTGRES_USERNAME" -
 echo "Database ready - running migrations..."
 cd /app/models/db_schemes/firmy
 
-# Check if alembic.ini exists, if not copy from example
-if [ ! -f "alembic.ini" ]; then
-    if [ -f "alembic.ini.example" ]; then
-        echo "Creating alembic.ini from example..."
-        cp alembic.ini.example alembic.ini
-        # Update the sqlalchemy.url in alembic.ini
-        sed -i "s|sqlalchemy.url.*|sqlalchemy.url = postgresql+asyncpg://${POSTGRES_USERNAME}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_MAIN_DATABASE}|g" alembic.ini
-    else
-        echo "Warning: alembic.ini.example not found, skipping migrations"
-    fi
+# URL encode the password for PostgreSQL connection string
+# This handles special characters like @, $, etc.
+ENCODED_PASSWORD=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${POSTGRES_PASSWORD}', safe=''))")
+# Escape % as %% for .ini file format (ConfigParser requirement)
+ENCODED_PASSWORD_INI=$(echo "$ENCODED_PASSWORD" | sed 's/%/%%/g')
+
+# Always recreate alembic.ini to ensure correct database URL
+if [ -f "alembic.ini.example" ]; then
+    echo "Creating alembic.ini from example..."
+    cp alembic.ini.example alembic.ini
+    # Update the sqlalchemy.url in alembic.ini - use psycopg2 for migrations, not asyncpg
+    sed -i "s|sqlalchemy.url.*|sqlalchemy.url = postgresql+psycopg2://${POSTGRES_USERNAME}:${ENCODED_PASSWORD_INI}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_MAIN_DATABASE}|g" alembic.ini
+else
+    echo "Warning: alembic.ini.example not found, skipping migrations"
 fi
 
 # Run migrations if alembic.ini exists

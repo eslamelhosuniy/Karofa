@@ -3,88 +3,72 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
-    container_name: karofa-app
+    container_name: prod-karofa-app
+    restart: unless-stopped
+    env_file:
+      - .env
     ports:
       - "8000:8000"
     volumes:
       - ../src:/app
       - ../src/assets:/app/assets
     environment:
+      # Application Config
       - APP_NAME=${APP_NAME:-Firmy}
       - APP_VERSION=${APP_VERSION:-0.1}
-      - POSTGRES_USERNAME=${POSTGRES_USERNAME:-postgres}
+      
+      # PostgreSQL/pgvector Config (REMOTE SERVER)
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_HOST=pgvector
-      - POSTGRES_PORT=5432
-      - POSTGRES_MAIN_DATABASE=${POSTGRES_MAIN_DATABASE:-minirag}
-      - GENERATION_BACKEND=${GENERATION_BACKEND}
-      - EMBEDDING_BACKEND=${EMBEDDING_BACKEND}
+      
+      # MongoDB Config (REMOTE SERVER)
+      - MONGO_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
+      - MONGO_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+      - MONGO_DATABASE=${MONGO_INITDB_DATABASE}
+      - MONGO_AUTH_SOURCE=admin
+      
+      # AI/ML Backends
+      - GENERATION_BACKEND=${GENERATION_BACKEND:-openai}
+      - EMBEDDING_BACKEND=${EMBEDDING_BACKEND:-openai}
+      
+      # API Keys
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_API_URL=${OPENAI_API_URL}
+      - OPENAI_API_URL=${OPENAI_API_URL:-https://api.openai.com/v1}
       - COHERE_API_KEY=${COHERE_API_KEY}
-      - GENERATION_MODEL_ID=${GENERATION_MODEL_ID:-gpt-3.5-turbo-0125}
-      - EMBEDDING_MODEL_ID=${EMBEDDING_MODEL_ID:-embed-multilingual-light-v3.0}
-      - EMBEDDING_MODEL_SIZE=${EMBEDDING_MODEL_SIZE:-384}
-      - INPUT_DAFAULT_MAX_CHARACTERS=${INPUT_DAFAULT_MAX_CHARACTERS:-1024}
-      - GENERATION_DAFAULT_MAX_TOKENS=${GENERATION_DAFAULT_MAX_TOKENS:-200}
-      - GENERATION_DAFAULT_TEMPERATURE=${GENERATION_DAFAULT_TEMPERATURE:-0.1}
-      - VECTOR_DB_BACKEND=${VECTOR_DB_BACKEND}
-      - VECTOR_DB_PATH=${VECTOR_DB_PATH}
-      - VECTOR_DB_DISTANCE_METHOD=${VECTOR_DB_DISTANCE_METHOD}
+      
+      # Model Configuration
+      - GENERATION_MODEL_ID=${GENERATION_MODEL_ID:-gpt-4o-mini}
+      - EMBEDDING_MODEL_ID=${EMBEDDING_MODEL_ID:-text-embedding-3-small}
+      - EMBEDDING_MODEL_SIZE=${EMBEDDING_MODEL_SIZE:-1536}
+      
+      # Generation Settings
+      - INPUT_DEFAULT_MAX_CHARACTERS=${INPUT_DEFAULT_MAX_CHARACTERS:-4096}
+      - GENERATION_DEFAULT_MAX_TOKENS=${GENERATION_DEFAULT_MAX_TOKENS:-1000}
+      - GENERATION_DEFAULT_TEMPERATURE=${GENERATION_DEFAULT_TEMPERATURE:-0.1}
+      
+      # Vector Database Config
+      - VECTOR_DB_BACKEND=${VECTOR_DB_BACKEND:-pgvector}
+      - VECTOR_DB_DISTANCE_METHOD=${VECTOR_DB_DISTANCE_METHOD:-cosine}
+      
+      # Localization
       - PRIMARY_LANG=${PRIMARY_LANG:-en}
       - DEFAULT_LANG=${DEFAULT_LANG:-en}
-      - FILE_ALLOWED_TYPES=${FILE_ALLOWED_TYPES}
+      
+      # File Upload Settings
+      - FILE_ALLOWED_TYPES=${FILE_ALLOWED_TYPES:-pdf,txt,docx,md}
       - FILE_MAX_SIZE=${FILE_MAX_SIZE:-10}
       - FILE_DEFAULT_CHUNK_SIZE=${FILE_DEFAULT_CHUNK_SIZE:-512000}
-    networks:
-      - backend
-    depends_on:
-      pgvector:
-        condition: service_healthy
-    restart: unless-stopped
+      
+      # Runtime Environment
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - WORKERS=${WORKERS:-4}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      
+    network_mode: bridge                    # ⬅️ Use default bridge for external connectivity
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-
-  mongodb:
-    image: mongo:7-jammy
-    container_name: mongodb
-    ports:
-      - "27007:27017"
-    volumes:
-      - mongodata:/data/db
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
-    networks:
-      - backend
-    restart: always
-
-  pgvector:
-    image: pgvector/pgvector:0.8.0-pg17
-    container_name: pgvector
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgvector_data:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_MAIN_DATABASE:-minirag}
-    networks:
-      - backend
-    restart: always
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-networks:
-  backend:
-
-volumes:
-  mongodata:
-  pgvector_data:
+    security_opt:
+      - no-new-privileges:true
