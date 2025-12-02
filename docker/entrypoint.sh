@@ -1,8 +1,10 @@
 #!/bin/bash
 set -e
 
+RAW_POSTGRES_PASSWORD="$POSTGRES_PASSWORD"
+
 echo "Waiting for PostgreSQL to be ready..."
-until pg_isready -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USERNAME"; do
+until PGPASSWORD="$RAW_POSTGRES_PASSWORD" pg_isready -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USERNAME"; do
   echo "PostgreSQL is unavailable - sleeping"
   sleep 2
 done
@@ -10,15 +12,15 @@ done
 echo "PostgreSQL is up - checking if database exists..."
 
 # Check if database exists, create if not
-PGPASSWORD=$POSTGRES_PASSWORD psql -h "$POSTGRES_HOST" -U "$POSTGRES_USERNAME" -tc "SELECT 1 FROM pg_database WHERE datname = '$POSTGRES_MAIN_DATABASE'" | grep -q 1 || \
-PGPASSWORD=$POSTGRES_PASSWORD psql -h "$POSTGRES_HOST" -U "$POSTGRES_USERNAME" -c "CREATE DATABASE $POSTGRES_MAIN_DATABASE"
+PGPASSWORD=$RAW_POSTGRES_PASSWORD psql -h "$POSTGRES_HOST" -U "$POSTGRES_USERNAME" -tc "SELECT 1 FROM pg_database WHERE datname = '$POSTGRES_MAIN_DATABASE'" | grep -q 1 || \
+PGPASSWORD=$RAW_POSTGRES_PASSWORD psql -h "$POSTGRES_HOST" -U "$POSTGRES_USERNAME" -c "CREATE DATABASE $POSTGRES_MAIN_DATABASE"
 
 echo "Database ready - running migrations..."
 cd /app/models/db_schemes/firmy
 
 # URL encode the password for PostgreSQL connection string
 # This handles special characters like @, $, etc.
-ENCODED_PASSWORD=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${POSTGRES_PASSWORD}', safe=''))")
+ENCODED_PASSWORD=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${RAW_POSTGRES_PASSWORD}', safe=''))")
 # Escape % as %% for .ini file format (ConfigParser requirement)
 ENCODED_PASSWORD_INI=$(echo "$ENCODED_PASSWORD" | sed 's/%/%%/g')
 
@@ -43,4 +45,5 @@ fi
 cd /app
 
 echo "Starting application..."
-exec uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+export POSTGRES_PASSWORD="$ENCODED_PASSWORD"
+exec uvicorn main:app --host 0.0.0.0 --port 8000
