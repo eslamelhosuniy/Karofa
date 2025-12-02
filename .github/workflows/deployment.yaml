@@ -1,0 +1,204 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Deploy to VPS
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          # Application Configuration
+          APP_NAME: ${{ secrets.APP_NAME }}
+          APP_VERSION: ${{ secrets.APP_VERSION }}
+          # File Upload Configuration
+          FILE_ALLOWED_TYPES: ${{ secrets.FILE_ALLOWED_TYPES }}
+          FILE_MAX_SIZE: ${{ secrets.FILE_MAX_SIZE }}
+          FILE_DEFAULT_CHUNK_SIZE: ${{ secrets.FILE_DEFAULT_CHUNK_SIZE }}
+          # PostgreSQL Configuration
+          POSTGRES_USERNAME: ${{ secrets.POSTGRES_USERNAME }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+          POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
+          POSTGRES_MAIN_DATABASE: ${{ secrets.POSTGRES_MAIN_DATABASE }}
+          # AI/ML Backend Configuration
+          GENERATION_BACKEND: ${{ secrets.GENERATION_BACKEND }}
+          EMBEDDING_BACKEND: ${{ secrets.EMBEDDING_BACKEND }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_URL: ${{ secrets.OPENAI_API_URL }}
+          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+          # Model Configuration
+          GENERATION_MODEL_ID_LITERAL: ${{ secrets.GENERATION_MODEL_ID_LITERAL }}
+          GENERATION_MODEL_ID: ${{ secrets.GENERATION_MODEL_ID }}
+          EMBEDDING_MODEL_ID: ${{ secrets.EMBEDDING_MODEL_ID }}
+          EMBEDDING_MODEL_SIZE: ${{ secrets.EMBEDDING_MODEL_SIZE }}
+          # Generation Parameters
+          INPUT_DAFAULT_MAX_CHARACTERS: ${{ secrets.INPUT_DAFAULT_MAX_CHARACTERS }}
+          GENERATION_DAFAULT_MAX_TOKENS: ${{ secrets.GENERATION_DAFAULT_MAX_TOKENS }}
+          GENERATION_DAFAULT_TEMPERATURE: ${{ secrets.GENERATION_DAFAULT_TEMPERATURE }}
+          # Vector Database Configuration
+          VECTOR_DB_BACKEND_LITERAL: ${{ secrets.VECTOR_DB_BACKEND_LITERAL }}
+          VECTOR_DB_BACKEND: ${{ secrets.VECTOR_DB_BACKEND }}
+          VECTOR_DB_PATH: ${{ secrets.VECTOR_DB_PATH }}
+          VECTOR_DB_DISTANCE_METHOD: ${{ secrets.VECTOR_DB_DISTANCE_METHOD }}
+          # Localization
+          PRIMARY_LANG: ${{ secrets.PRIMARY_LANG }}
+          DEFAULT_LANG: ${{ secrets.DEFAULT_LANG }}
+        run: |
+          # 1. Setup SSH Agent safely
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "$HOSTINGER_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H $HOSTINGER_HOST >> ~/.ssh/known_hosts
+          
+          # 2. Create .env file locally from GitHub secrets
+          echo "Creating .env file from GitHub secrets..."
+          cat > /tmp/.env << ENVFILE
+          # ============================================
+          # Application Configuration
+          # ============================================
+          APP_NAME=${APP_NAME}
+          APP_VERSION=${APP_VERSION}
+
+          # ============================================
+          # File Upload Configuration
+          # ============================================
+          FILE_ALLOWED_TYPES=${FILE_ALLOWED_TYPES}
+          FILE_MAX_SIZE=${FILE_MAX_SIZE}
+          FILE_DEFAULT_CHUNK_SIZE=${FILE_DEFAULT_CHUNK_SIZE}
+
+          # ============================================
+          # PostgreSQL Configuration
+          # ============================================
+          POSTGRES_USERNAME=${POSTGRES_USERNAME}
+          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+          POSTGRES_HOST=${POSTGRES_HOST}
+          POSTGRES_PORT=${POSTGRES_PORT}
+          POSTGRES_MAIN_DATABASE=${POSTGRES_MAIN_DATABASE}
+
+          # ============================================
+          # AI/ML Backend Configuration
+          # ============================================
+          GENERATION_BACKEND=${GENERATION_BACKEND}
+          EMBEDDING_BACKEND=${EMBEDDING_BACKEND}
+          OPENAI_API_KEY=${OPENAI_API_KEY}
+          OPENAI_API_URL=${OPENAI_API_URL}
+          COHERE_API_KEY=${COHERE_API_KEY}
+
+          # ============================================
+          # Model Configuration
+          # ============================================
+          GENERATION_MODEL_ID_LITERAL=${GENERATION_MODEL_ID_LITERAL}
+          GENERATION_MODEL_ID=${GENERATION_MODEL_ID}
+          EMBEDDING_MODEL_ID=${EMBEDDING_MODEL_ID}
+          EMBEDDING_MODEL_SIZE=${EMBEDDING_MODEL_SIZE}
+
+          # ============================================
+          # Generation Parameters
+          # ============================================
+          INPUT_DAFAULT_MAX_CHARACTERS=${INPUT_DAFAULT_MAX_CHARACTERS}
+          GENERATION_DAFAULT_MAX_TOKENS=${GENERATION_DAFAULT_MAX_TOKENS}
+          GENERATION_DAFAULT_TEMPERATURE=${GENERATION_DAFAULT_TEMPERATURE}
+
+          # ============================================
+          # Vector Database Configuration
+          # ============================================
+          VECTOR_DB_BACKEND_LITERAL=${VECTOR_DB_BACKEND_LITERAL}
+          VECTOR_DB_BACKEND=${VECTOR_DB_BACKEND}
+          VECTOR_DB_PATH=${VECTOR_DB_PATH}
+          VECTOR_DB_DISTANCE_METHOD=${VECTOR_DB_DISTANCE_METHOD}
+
+          # ============================================
+          # Localization
+          # ============================================
+          PRIMARY_LANG=${PRIMARY_LANG}
+          DEFAULT_LANG=${DEFAULT_LANG}
+          ENVFILE
+          
+          # Remove leading whitespace from .env file
+          sed -i 's/^[[:space:]]*//' /tmp/.env
+          
+          # 3. Prepare the deployment package locally
+          echo "Compressing application files..."
+          tar --exclude='.git' \
+              -czf /tmp/fermy_deploy_package.tar.gz .
+          
+          # 4. Ensure remote directory exists and copy package
+          echo "Ensuring remote directory exists..."
+          ssh -i ~/.ssh/deploy_key $HOSTINGER_USER@$HOSTINGER_HOST "mkdir -p ~/ai-deployment/Karofa/docker/"
+          
+          echo "Uploading package to remote host..."
+          scp -i ~/.ssh/deploy_key /tmp/fermy_deploy_package.tar.gz \
+              $HOSTINGER_USER@$HOSTINGER_HOST:~/ai-deployment/Karofa/deploy_package.tar.gz
+          
+          echo "Uploading .env file to remote host..."
+          scp -i ~/.ssh/deploy_key /tmp/.env \
+              $HOSTINGER_USER@$HOSTINGER_HOST:~/ai-deployment/Karofa/docker/.env
+          
+          # 5. Deploy on Server
+          ssh -i ~/.ssh/deploy_key $HOSTINGER_USER@$HOSTINGER_HOST << 'EOF'
+            set -e
+            cd ~/ai-deployment/Karofa || exit 1
+            
+            echo "Stopping existing containers..."
+            docker compose down || true
+            
+            echo "Backing up important files..."
+            rm -rf ~/backup_temp
+            mkdir -p ~/backup_temp
+            [ -d "certbot" ] && cp -r certbot ~/backup_temp/ || true
+            [ -d "nginx" ] && cp -r nginx ~/backup_temp/ || true
+            # docker-compose lives under docker/
+            [ -f "docker/docker-compose.yml" ] && cp docker/docker-compose.yml ~/backup_temp/ || true
+            # Backup the .env we just uploaded
+            [ -f "docker/.env" ] && cp docker/.env ~/backup_temp/.env || true
+            
+            echo "Removing old application files..."
+            find . -mindepth 1 -maxdepth 1 \
+              ! -name 'deploy_package.tar.gz' \
+              -exec sudo rm -rf {} + || true
+            
+            echo "Unpacking new code..."
+            tar -xzf deploy_package.tar.gz
+            sudo rm deploy_package.tar.gz
+            
+            echo "Restoring configs..."
+            [ ! -d "certbot" ] && [ -d ~/backup_temp/certbot ] && cp -r ~/backup_temp/certbot . || true
+            [ ! -d "nginx" ] && [ -d ~/backup_temp/nginx ] && cp -r ~/backup_temp/nginx . || true
+            # Restore docker-compose into docker/ directory
+            [ ! -f "docker/docker-compose.yml" ] && [ -f ~/backup_temp/docker-compose.yml ] && cp ~/backup_temp/docker-compose.yml docker/docker-compose.yml || true
+            # Restore the .env file
+            [ -f ~/backup_temp/.env ] && cp ~/backup_temp/.env docker/.env || true
+            
+            rm -rf ~/backup_temp
+            
+            echo ".env file is ready at docker/.env"
+            
+            echo "Building and starting containers..."
+            docker compose build --no-cache firmy-ai 
+            docker compose up -d 
+            
+            echo "Cleaning up old Docker images..."
+            docker image prune -f
+            
+            echo "Deployment complete!"
+            docker compose ps
+          EOF
+          
+          # Cleanup local files
+          sudo rm -f ~/.ssh/deploy_key
+          rm -f /tmp/.env
+          
+          echo "Deployment successful!"
