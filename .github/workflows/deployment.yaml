@@ -57,6 +57,32 @@ jobs:
           PRIMARY_LANG: ${{ secrets.PRIMARY_LANG }}
           DEFAULT_LANG: ${{ secrets.DEFAULT_LANG }}
         run: |
+          # Enable strict mode and verbose output to help debugging
+          set -euo pipefail
+          set -x
+
+          # Preflight: ensure required environment variables are present
+          required_vars=(
+            HOSTINGER_HOST HOSTINGER_USER HOSTINGER_SSH_KEY
+            APP_NAME APP_VERSION FILE_ALLOWED_TYPES FILE_MAX_SIZE FILE_DEFAULT_CHUNK_SIZE
+            POSTGRES_USERNAME POSTGRES_PASSWORD POSTGRES_HOST POSTGRES_PORT POSTGRES_MAIN_DATABASE
+            GENERATION_BACKEND EMBEDDING_BACKEND OPENAI_API_KEY OPENAI_API_URL COHERE_API_KEY
+            GENERATION_MODEL_ID_LITERAL GENERATION_MODEL_ID EMBEDDING_MODEL_ID EMBEDDING_MODEL_SIZE
+            INPUT_DAFAULT_MAX_CHARACTERS GENERATION_DAFAULT_MAX_TOKENS GENERATION_DAFAULT_TEMPERATURE
+            VECTOR_DB_BACKEND_LITERAL VECTOR_DB_BACKEND VECTOR_DB_PATH VECTOR_DB_DISTANCE_METHOD
+            PRIMARY_LANG DEFAULT_LANG
+          )
+          missing=()
+          for v in "${required_vars[@]}"; do
+            if [ -z "${!v-}" ]; then
+              missing+=("$v")
+            fi
+          done
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "ERROR: Missing required env vars: ${missing[*]}"
+            exit 1
+          fi
+
           # 1. Setup SSH Agent safely
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
