@@ -131,7 +131,8 @@ class QdrantDBProvider(VectorDBInterface):
         results = self.client.search(
             collection_name=collection_name,
             query_vector=vector,
-            limit=limit
+            limit=limit,
+            filter = {}
         )
 
         if not results or len(results) == 0:
@@ -141,7 +142,71 @@ class QdrantDBProvider(VectorDBInterface):
             RetrievedDocument(**{
                 "score": result.score,
                 "text": result.payload["text"],
+                "chunk_id":result.id
             })
             for result in results
         ]
 
+    def search_by_vector_with_filter(self, collection_name: str, vector: list, 
+                                      limit: int = 5, tags: list = None):
+        
+        query_filter = None
+        if tags and len(tags) > 0:
+            query_filter = models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="metadata.tags",
+                        match=models.MatchAny(any=tags)
+                    )
+                ]
+            )
+
+        results = self.client.search(
+            collection_name=collection_name,
+            query_vector=vector,
+            limit=limit,
+            query_filter=query_filter
+        )
+
+        if not results or len(results) == 0:
+            return None
+        
+        return [
+            RetrievedDocument(**{
+                "score": result.score,
+                "text": result.payload["text"],
+                "chunk_id": result.id
+            })
+            for result in results
+        ]
+
+    def delete_by_tags(self, collection_name: str, tags: list) -> int:
+        """Delete records that have EXACTLY the same tags (exact match)"""
+        
+        if not self.is_collection_existed(collection_name):
+            return 0
+        
+        if not tags or len(tags) == 0:
+            return 0
+
+        # Create sorted tags key for exact match
+        tags_key = "|".join(sorted(tags))
+
+        try:
+            result = self.client.delete(
+                collection_name=collection_name,
+                points_selector=models.FilterSelector(
+                    filter=models.Filter(
+                        must=[
+                            models.FieldCondition(
+                                key="metadata.tags_key",
+                                match=models.MatchValue(value=tags_key)
+                            )
+                        ]
+                    )
+                )
+            )
+            return 1 if result else 0
+        except Exception as e:
+            self.logger.error(f"Error while deleting by tags: {e}")
+            return 0

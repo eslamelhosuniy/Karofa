@@ -49,4 +49,14 @@ class VectorDBInterface(ABC):
     @abstractmethod
     def search_by_vector(self, collection_name: str, vector: list, limit: int) -> List[RetrievedDocument]:
         pass
+
+    @abstractmethod
+    def search_by_vector_with_filter(self, collection_name: str, vector: list, 
+                                      limit: int, tags: List[str] = None) -> List[RetrievedDocument]:
+        pass
+
+    @abstractmethod
+    def delete_by_tags(self, collection_name: str, tags: List[str]) -> int:
+        """Delete records that match any of the given tags. Returns count of deleted records."""
+        pass
     
