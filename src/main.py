@@ -6,16 +6,13 @@ from stores.vectordb.VectorDBProviderFactory import VectorDBProviderFactory
 from stores.llm.templates.template_parser import TemplateParser
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from urllib.parse import quote_plus
 
 app = FastAPI()
 
 async def startup_span():
     settings = get_settings()
 
-    # URL encode password to handle special characters
-    encoded_password = quote_plus(settings.POSTGRES_PASSWORD)
-    postgres_conn = f"postgresql+asyncpg://{settings.POSTGRES_USERNAME}:{encoded_password}@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_MAIN_DATABASE}"
+    postgres_conn = f"postgresql+asyncpg://{settings.POSTGRES_USERNAME}:{settings.POSTGRES_PASSWORD}@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_MAIN_DATABASE}"
 
     app.db_engine = create_async_engine(postgres_conn)
     app.db_client = sessionmaker(
