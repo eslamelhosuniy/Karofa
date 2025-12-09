@@ -84,7 +84,7 @@ async def upload_data(request: Request, project_id: int, file: UploadFile,
     return JSONResponse(
             content={
                 "signal": ResponseSignal.FILE_UPLOAD_SUCCESS.value,
-                "file_id": str(asset_record.asset_id),
+                "file_id": asset_record.asset_id,
             }
         )
 
@@ -111,7 +111,7 @@ async def process_endpoint(request: Request, project_id: int, process_request: P
     if process_request.file_id:
         asset_record = await asset_model.get_asset_record(
             asset_project_id=project.project_id,
-            asset_name=process_request.file_id
+            asset_id=process_request.file_id
         )
 
         if asset_record is None:
