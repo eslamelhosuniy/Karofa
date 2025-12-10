@@ -18,3 +18,21 @@ class TaggedSearchRequest(BaseModel):
     text: str
     limit: Optional[int] = 5
     tags: Optional[List[str]] = None
+
+# New models for chat history support
+class ChatMessage(BaseModel):
+    role: str  # "user" or "assistant"
+    content: str
+
+class ChatAnswerRequest(BaseModel):
+    text: str
+    chat_history: Optional[List[ChatMessage]] = None
+    session_entities: Optional[List[str]] = None
+    limit: Optional[int] = 5
+
+class TaggedChatAnswerRequest(BaseModel):
+    text: str
+    chat_history: Optional[List[ChatMessage]] = None
+    session_entities: Optional[List[str]] = None
+    tags: Optional[List[str]] = None
+    limit: Optional[int] = 5
